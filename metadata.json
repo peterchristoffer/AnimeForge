@@ -1,0 +1,7 @@
+{
+  "name": "AnimeForge: Character Creator",
+  "description": "Create your own unique anime character with custom styles, personalities, and AI-generated backstories. Turn your photos into anime legends!",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
