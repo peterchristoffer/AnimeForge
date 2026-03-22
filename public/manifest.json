@@ -1,0 +1,21 @@
+{
+  "name": "AnimeForge: Character Creator",
+  "short_name": "AnimeForge",
+  "description": "Skapa episka anime-karaktärer med AI",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "https://picsum.photos/192/192?random=1",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://picsum.photos/512/512?random=1",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

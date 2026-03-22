@@ -13,6 +13,7 @@ export interface CharacterData {
   style: AnimeStyle;
   customStyle?: string;
   clothingStyle?: string;
+  environment?: string;
   features: CharacterFeatures;
   personality: string;
   photoBase64?: string;
@@ -20,6 +21,9 @@ export interface CharacterData {
 }
 
 export interface GeneratedCharacter {
+  id?: string;
+  userId?: string;
+  name: string;
   imageUrl: string;
   story: string;
   japaneseSummary: string;
@@ -29,4 +33,6 @@ export interface GeneratedCharacter {
     intelligence: number;
     spirit: number;
   };
+  createdAt?: any;
+  isPublic?: boolean;
 }

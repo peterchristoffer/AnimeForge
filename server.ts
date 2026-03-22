@@ -15,34 +15,9 @@ async function startServer() {
 
   app.use(express.json({ limit: '50mb' }));
 
-  // In-memory store for characters (simulating a database)
-  const communityCharacters: any[] = [];
-
-  // API routes
+  // Health check
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
-  });
-
-  app.post("/api/upload", (req, res) => {
-    const character = req.body;
-    if (!character.name || !character.imageUrl) {
-      return res.status(400).json({ error: "Invalid character data" });
-    }
-    
-    // Add to our "community" list
-    communityCharacters.push({
-      ...character,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      votes: 0
-    });
-
-    console.log(`Character ${character.name} uploaded to community!`);
-    res.json({ success: true, message: "Character published to community!" });
-  });
-
-  app.get("/api/community", (req, res) => {
-    res.json(communityCharacters);
   });
 
   // Vite middleware for development

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Manga Story Forge</string>
+    <string name="title_activity_main">Manga Story Forge</string>
+    <string name="package_name">com.mangastoryforge.app</string>
+    <string name="custom_url_scheme">com.mangastoryforge.app</string>
+</resources>

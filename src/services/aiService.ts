@@ -1,11 +1,17 @@
-import { GoogleGenAI, Modality, Type } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { CharacterData, GeneratedCharacter } from "../types";
 
-const apiKey = process.env.GEMINI_API_KEY || "";
+const getAI = () => {
+  // @ts-ignore
+  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || (import.meta as any).env.VITE_GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error("Gemini API key is missing. Please ensure GEMINI_API_KEY is available in your environment.");
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 export const generateCharacterImage = async (data: CharacterData): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || process.env.GEMINI_API_KEY });
-  
+  const ai = getAI();
   const styleToUse = data.customStyle || data.style;
   
   let prompt = `GENERATE_IMAGE: Create a high-quality anime character portrait.
@@ -13,6 +19,7 @@ export const generateCharacterImage = async (data: CharacterData): Promise<strin
     Style: ${styleToUse} anime art.
     Clothing Style: ${data.clothingStyle || 'Modern Streetwear'}.
     Character Details: ${data.features.hairColor} hair, ${data.features.eyeColor} eyes, wearing ${data.features.outfit}, with ${data.features.accessory}. 
+    Environment: ${data.environment || 'Anime Background'}.
     Personality/Vibe: ${data.personality}. 
     The image should be a clear, centered portrait with vibrant colors and clean lines.`;
 
@@ -22,76 +29,63 @@ export const generateCharacterImage = async (data: CharacterData): Promise<strin
       Preserve their specific facial geometry, eye shape, bone structure, and unique identifying features from the photo. 
       The anime aesthetic is the medium, but the person's identity is the priority.
       Details: ${data.gender}, ${data.features.hairColor} hair, ${data.features.eyeColor} eyes, wearing ${data.features.outfit}.
+      Environment: ${data.environment || 'Anime Background'}.
       Clothing Style: ${data.clothingStyle || 'Modern Streetwear'}.
       Vibe: ${data.personality}.`;
   }
 
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-image-preview',
-      contents: {
-        parts: [
-          ...(data.photoBase64 ? [{
-            inlineData: {
-              data: data.photoBase64.split(',')[1],
-              mimeType: "image/png"
-            }
-          }] : []),
-          { text: prompt }
-        ],
-      },
-      config: {
-        imageConfig: {
-          aspectRatio: "3:4",
-          imageSize: data.imageSize || "1K"
-        }
-      },
-    });
-
-    const candidate = response.candidates?.[0];
-    
-    if (candidate?.finishReason === 'SAFETY') {
-      throw new Error("Bilden blockerades av säkerhetsfilter. Gemini följer strikta regler som förbjuder generering av: \n1. Kända verkliga personer eller kändisar.\n2. Upphovsrättsskyddat material (t.ex. specifika existerande anime-karaktärer).\n3. Känsligt eller olämpligt innehåll.\n\nProva att ladda upp en annan bild eller ändra din beskrivning för att följa dessa riktlinjer.");
-    }
-
-    for (const part of candidate?.content?.parts || []) {
-      if (part.inlineData) {
-        return `data:image/png;base64,${part.inlineData.data}`;
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash-image',
+    contents: {
+      parts: [
+        ...(data.photoBase64 ? [{
+          inlineData: {
+            data: data.photoBase64.split(',')[1],
+            mimeType: data.photoBase64.split(';')[0].split(':')[1] || "image/png"
+          }
+        }] : []),
+        { text: prompt }
+      ],
+    },
+    config: {
+      imageConfig: {
+        aspectRatio: "3:4",
       }
-    }
+    },
+  });
 
-    if (candidate?.content?.parts?.[0]?.text) {
-      console.warn("AI returned text instead of image:", candidate.content.parts[0].text);
-      throw new Error("AI:n skickade text istället för en bild. Prova att vara mer specifik i din beskrivning.");
-    }
-
-    throw new Error("Ingen bild genererades. Försök igen om en stund.");
-  } catch (error) {
-    console.error("Image generation error:", error);
-    throw error;
+  const candidate = response.candidates?.[0];
+  if (candidate?.finishReason === 'SAFETY') {
+    throw new Error("Bilden blockerades av säkerhetsfilter.");
   }
+
+  for (const part of candidate?.content?.parts || []) {
+    if (part.inlineData) {
+      return `data:image/png;base64,${part.inlineData.data}`;
+    }
+  }
+  throw new Error("Ingen bild genererades.");
 };
 
 export const generateCharacterStory = async (data: CharacterData): Promise<{ story: string; stats: GeneratedCharacter['stats']; coolName: string; japaneseSummary: string }> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || process.env.GEMINI_API_KEY });
-  
+  const ai = getAI();
   const styleToUse = data.customStyle || data.style;
-  
+
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Create a cool Japanese anime version of the name "${data.name}". 
       Also create a short, engaging anime backstory (max 150 words) and RPG-style stats for this character. 
       Additionally, provide a very short summary of the backstory in Japanese (max 20 characters).
-      Style: ${styleToUse}. Clothing Style: ${data.clothingStyle || 'Modern Streetwear'}. Features: ${JSON.stringify(data.features)}. Personality: ${data.personality}.
+      Style: ${styleToUse}. Clothing Style: ${data.clothingStyle || 'Modern Streetwear'}. Features: ${JSON.stringify(data.features)}. Personality: ${data.personality}. Environment: ${data.environment || 'N/A'}.
       Return the stats as Strength, Agility, Intelligence, and Spirit (values 1-100).`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          coolName: { type: Type.STRING, description: "The Japanese anime version of the input name" },
+          coolName: { type: Type.STRING },
           story: { type: Type.STRING },
-          japaneseSummary: { type: Type.STRING, description: "A very short summary of the backstory in Japanese" },
+          japaneseSummary: { type: Type.STRING },
           stats: {
             type: Type.OBJECT,
             properties: {
@@ -107,38 +101,57 @@ export const generateCharacterStory = async (data: CharacterData): Promise<{ sto
       }
     }
   });
+  
+  return JSON.parse(response.text);
+};
 
+export const generateMangaStory = async (prompt: string): Promise<{ title: string; content: string }> => {
+  const ai = getAI();
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          content: { type: Type.STRING }
+        },
+        required: ["title", "content"]
+      }
+    }
+  });
   return JSON.parse(response.text);
 };
 
 export const editCharacterImage = async (imageBase64: string, editPrompt: string): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || process.env.GEMINI_API_KEY });
-  
+  const ai = getAI();
   const response = await ai.models.generateContent({
-    model: 'gemini-3.1-flash-image-preview',
+    model: 'gemini-2.5-flash-image',
     contents: {
       parts: [
         {
           inlineData: {
             data: imageBase64.split(',')[1],
-            mimeType: "image/png",
-          },
+            mimeType: imageBase64.split(';')[0].split(':')[1] || "image/png"
+          }
         },
-        { text: editPrompt },
+        { text: `GENERATE_IMAGE: Edit this anime character portrait based on this request: ${editPrompt}. Keep the character consistent.` }
       ],
+    },
+    config: {
+      imageConfig: {
+        aspectRatio: "3:4",
+      }
     },
   });
 
   const candidate = response.candidates?.[0];
-  
-  if (candidate?.finishReason === 'SAFETY') {
-    throw new Error("Redigeringen blockerades av säkerhetsfilter. Gemini följer strikta regler som förbjuder generering av: \n1. Kända verkliga personer eller kändisar.\n2. Upphovsrättsskyddat material (t.ex. specifika existerande anime-karaktärer).\n3. Känsligt eller olämpligt innehåll.\n\nProva att ändra din beskrivning för att följa dessa riktlinjer.");
-  }
-
   for (const part of candidate?.content?.parts || []) {
     if (part.inlineData) {
       return `data:image/png;base64,${part.inlineData.data}`;
     }
   }
-  throw new Error("Failed to edit image");
+  throw new Error("Misslyckades med att redigera bilden.");
 };

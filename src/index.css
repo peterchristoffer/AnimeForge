@@ -125,30 +125,35 @@
 
 @layer base {
   body {
-    @apply bg-brand-dark text-slate-200 font-sans antialiased selection:bg-brand-blue/30;
+    @apply bg-brand-dark text-slate-200 font-sans antialiased;
+  }
+  ::selection {
+    background-color: rgba(59, 130, 246, 0.3);
   }
 }
 
 @layer components {
   .anime-panel {
-    @apply bg-slate-900/80 border-2 border-slate-800 rounded-[2rem] p-8 transition-all duration-500;
-    box-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
+    @apply border border-slate-800/40 rounded-3xl p-8 transition-all duration-500;
+    background-color: rgba(15, 23, 42, 0.3);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 4px 20px -1px rgba(0, 0, 0, 0.1);
   }
 
   .anime-panel:hover {
-    @apply border-brand-blue/30;
-    box-shadow: 0 0 60px rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.15);
+    background-color: rgba(15, 23, 42, 0.4);
   }
 
   .anime-button {
-    @apply relative overflow-hidden px-8 py-4 bg-brand-blue text-white font-black uppercase tracking-widest rounded-2xl transition-all duration-300 flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    @apply relative overflow-hidden px-8 py-3.5 bg-brand-blue text-white font-semibold uppercase tracking-widest rounded-xl transition-all duration-300 flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .anime-button::after {
     content: '';
-    @apply absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full skew-x-12;
-    animation: shimmer 3s infinite;
+    @apply absolute inset-0 -translate-x-full skew-x-12;
+    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.2), transparent);
+    animation: shimmer 4s infinite;
   }
 
   .anime-button:active {
@@ -156,11 +161,12 @@
   }
 
   .anime-input {
-    @apply w-full bg-slate-950 border-2 border-slate-800 rounded-2xl px-6 py-4 text-white placeholder:text-slate-600 outline-none transition-all focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10;
+    @apply w-full bg-slate-950/40 border border-slate-800/60 rounded-xl px-6 py-4 text-white placeholder:text-slate-600 outline-none transition-all focus:border-brand-blue/50 focus:ring-4;
+    --tw-ring-color: rgba(59, 130, 246, 0.05);
   }
 
   .stat-bar-container {
-    @apply h-4 bg-slate-950 rounded-full overflow-hidden border-2 border-slate-800 p-0.5;
+    @apply h-1.5 bg-slate-950/60 rounded-full overflow-hidden border border-slate-800/40;
   }
 
   .stat-bar-fill {
@@ -180,25 +186,69 @@
   }
 }
 
+@layer utilities {
+.perspective-1000 {
+    perspective: 1000px;
+  }
+
+  .preserve-3d {
+    transform-style: preserve-3d;
+  }
+
+  .backface-hidden {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+}
+
 @keyframes scan {
   0% { transform: translateY(-100%); }
   100% { transform: translateY(100%); }
 }
 
 .scanning-line {
-  @apply absolute inset-x-0 h-1 bg-brand-blue/50 shadow-[0_0_15px_rgba(59,130,246,0.8)] z-20 pointer-events-none;
+  @apply absolute inset-x-0 h-1 z-20 pointer-events-none;
+  background-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.8);
   animation: scan 2000ms linear infinite;
 }
 
 .trading-card-container {
-  aspect-ratio: 2.5 / 3.5;
-  width: 100%;
-  max-width: 380px;
-  position: relative;
-  overflow: hidden;
-  border-radius: 2rem;
-  border: 4px solid #1e293b;
+  @apply w-full h-full relative overflow-hidden rounded-[2rem] bg-slate-950;
   box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.7);
+}
+
+.card-foil-border {
+  @apply absolute inset-0 rounded-[2rem] pointer-events-none z-50;
+  border: 2px solid transparent;
+  background: linear-gradient(135deg, #ffd700, #fff, #ffd700, #b8860b, #ffd700) border-box;
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: destination-out;
+  mask-composite: exclude;
+}
+
+.card-holographic {
+  @apply absolute inset-0 pointer-events-none z-40 opacity-20 mix-blend-color-dodge;
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgba(255, 215, 0, 0.2) 25%,
+    rgba(0, 255, 255, 0.2) 30%,
+    rgba(255, 0, 255, 0.2) 35%,
+    transparent 40%
+  );
+  background-size: 200% 200%;
+  animation: holo-shimmer 8s linear infinite;
+}
+
+@keyframes holo-shimmer {
+  0% { background-position: 200% 0%; }
+  100% { background-position: -200% 0%; }
+}
+
+.card-texture {
+  @apply absolute inset-0 pointer-events-none z-30 opacity-[0.03] mix-blend-overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
 }
 
 .character-glow {
@@ -213,6 +263,11 @@
 
 .neon-text {
   text-shadow: 0 0 10px rgba(59, 130, 246, 0.5), 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+.writing-mode-vertical {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
 }
 
 @keyframes shimmer {

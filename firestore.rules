@@ -1,0 +1,157 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required)
+    //   - displayName: string (required)
+    //   - photoURL: string (optional)
+    //   - email: string (required, email format)
+    //   - lastLogin: timestamp (optional)
+    //
+    // Collection: characters
+    // Document ID: {characterId}
+    // Fields:
+    //   - userId: string (required, immutable)
+    //   - name: string (required, < 100 chars)
+    //   - story: string (required, < 5000 chars)
+    //   - japaneseSummary: string (optional, < 100 chars)
+    //   - imageUrl: string (required, valid URL)
+    //   - stats: map (required)
+    //     - strength: number (1-100)
+    //     - agility: number (1-100)
+    //     - intelligence: number (1-100)
+    //     - spirit: number (1-100)
+    //   - createdAt: timestamp (required, immutable)
+    //   - isPublic: boolean (required)
+    //   - likesCount: number (optional, default 0)
+    //
+    // Collection: mangaStories
+    // Document ID: {storyId}
+    // Fields:
+    //   - userId: string (required, immutable)
+    //   - title: string (required, < 200 chars)
+    //   - content: string (required, < 10000 chars)
+    //   - characterIds: list (required, max 5)
+    //   - createdAt: timestamp (required, immutable)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "Peterchristoffer@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*") || url.matches("^data:image/.*"));
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'displayName', 'photoURL', 'email', 'lastLogin', 'role']) &&
+             data.uid == request.auth.uid &&
+             (data.displayName == null || (data.displayName is string && data.displayName.size() < 100)) &&
+             data.email is string && isValidEmail(data.email) &&
+             (data.photoURL == null || isValidUrl(data.photoURL));
+    }
+
+    function isValidCharacter(data) {
+      return hasOnlyAllowedFields(['userId', 'name', 'story', 'japaneseSummary', 'imageUrl', 'stats', 'createdAt', 'isPublic', 'likesCount']) &&
+             data.userId == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.story is string && data.story.size() > 0 && data.story.size() < 5000 &&
+             (!('japaneseSummary' in data) || data.japaneseSummary == null || (data.japaneseSummary is string && data.japaneseSummary.size() < 100)) &&
+             isValidUrl(data.imageUrl) &&
+             data.stats is map &&
+             data.stats.strength is number && data.stats.strength >= 0 && data.stats.strength <= 100 &&
+             data.stats.agility is number && data.stats.agility >= 0 && data.stats.agility <= 100 &&
+             data.stats.intelligence is number && data.stats.intelligence >= 0 && data.stats.intelligence <= 100 &&
+             data.stats.spirit is number && data.stats.spirit >= 0 && data.stats.spirit <= 100 &&
+             data.createdAt is timestamp &&
+             data.isPublic is bool &&
+             (!('likesCount' in data) || data.likesCount is number);
+    }
+
+    function isValidMangaStory(data) {
+      return hasOnlyAllowedFields(['userId', 'title', 'content', 'characterIds', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.content is string && data.content.size() > 0 && data.content.size() < 10000 &&
+             data.characterIds is list && data.characterIds.size() > 0 && data.characterIds.size() <= 5 &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || isAdmin());
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
+    }
+
+    match /characters/{characterId} {
+      allow read: if resource.data.isPublic == true || isOwner(resource.data.userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidCharacter(request.resource.data);
+      allow update: if (isOwner(resource.data.userId) && isValidCharacter(request.resource.data) && 
+                        request.resource.data.userId == resource.data.userId &&
+                        request.resource.data.createdAt == resource.data.createdAt) ||
+                      (isAuthenticated() && 
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount']) &&
+                        (
+                          (request.resource.data.likesCount == resource.data.likesCount + 1 && 
+                           getAfter(/databases/$(database)/documents/characters/$(characterId)/likes/$(request.auth.uid)) != null) ||
+                          (request.resource.data.likesCount == resource.data.likesCount - 1 && 
+                           getAfter(/databases/$(database)/documents/characters/$(characterId)/likes/$(request.auth.uid)) == null)
+                        ));
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+
+    // Collection Group rule for 'likes'
+    match /{path=**}/likes/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || (resource != null && resource.data.uid == request.auth.uid));
+      allow create, delete: if isOwner(userId);
+    }
+
+    match /mangaStories/{storyId} {
+      allow read: if true; // Publicly readable
+      allow create: if isAuthenticated() && isValidMangaStory(request.resource.data);
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
